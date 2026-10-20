@@ -1,0 +1,8 @@
+# dsh-sidebar-extras bundle patch.
+#
+# One host entry serves the browser half's data routes
+# (/sidebar-extras/api/*). The browser bundle is declared separately by
+# package.json's dsh.client section, so this patch only inserts the host row.
+- insert:
+    - id: sidebar-extras
+      name: dsh-sidebar-extras
