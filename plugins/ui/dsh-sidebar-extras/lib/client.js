@@ -196,10 +196,16 @@ window.__ModuleLoader__.load({
 			const skin = props.skin;
 			const busy = props.busy === skin.name;
 			const active = skin.enabled;
+			const [broken, setBroken] = React.useState(false);
+			const showImage = Boolean(skin.preview) && !broken;
 			return h("div", { className: "dshx-skin", "data-active": active ? "true" : "false" },
 				h("div", { className: "dshx-shot" },
-					skin.preview ? h("img", { src: skin.preview, alt: `${skin.short} 预览`, loading: "lazy" }) : null,
-					!skin.preview ? h("div", { className: "dshx-empty-shot" }, skin.short.slice(0, 2).toUpperCase()) : null,
+					showImage ? h("img", {
+						src: skin.preview,
+						alt: `${skin.short} 预览`,
+						onError: () => setBroken(true)
+					}) : null,
+					!showImage ? h("div", { className: "dshx-empty-shot" }, skin.short.slice(0, 2).toUpperCase()) : null,
 					active ? h("span", { className: "dshx-badge" }, "使用中") : null),
 				h("div", { className: "dshx-skin-body" },
 					h("p", { className: "dshx-skin-name" }, skin.short),

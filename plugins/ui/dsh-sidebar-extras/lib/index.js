@@ -59,16 +59,18 @@ const MIME = {
  * them), so the gallery would otherwise be blank for most skins.
  */
 const BUNDLED_PREVIEWS = [
-  [/open-sea/i, 'open-sea.png'],
-  [/catppuccin/i, 'catppuccin.png'],
-  [/qingxiao|清宵/i, 'qingxiao.png'],
+  [/day-night/i, 'day-night.webp'],
+  [/maid-whale/i, 'maid-whale.webp'],
+  [/open-sea/i, 'open-sea.webp'],
+  [/catppuccin/i, 'catppuccin.webp'],
+  [/qingxiao|清宵/i, 'qingxiao.webp'],
   [/maid-atelier|deep-whale/i, 'maid-atelier.webp'],
-  [/minecraft/i, 'minecraft.png'],
-  [/uiskin|blue-glass/i, 'uiskin.jpg'],
-  [/liquid-glass/i, 'liquid-glass.jpg'],
-  [/client-ui-skins|crimson-moon/i, 'crimson-moon.jpg'],
-  [/claude/i, 'claude.png'],
-  [/cyrene/i, 'cyrene.png'],
+  [/minecraft/i, 'minecraft.webp'],
+  [/uiskin|blue-glass/i, 'uiskin.webp'],
+  [/liquid-glass/i, 'liquid-glass.webp'],
+  [/client-ui-skins|crimson-moon/i, 'crimson-moon.webp'],
+  [/claude/i, 'claude.webp'],
+  [/cyrene/i, 'cyrene.webp'],
   [/yoimiya/i, 'yoimiya.webp'],
 ];
 
