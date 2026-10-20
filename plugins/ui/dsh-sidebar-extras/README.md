@@ -13,10 +13,10 @@ Category: [`plugins/ui/`](../../ui/) · part of [dsh-plugins](../../../../README
 
 ## Install
 
-From this repository (no clone needed):
+From the published release (no clone needed):
 
 ```powershell
-dsh plugin --profile web add "github:Donfgt/dsh-plugins#path:/plugins/ui/dsh-sidebar-extras"
+dsh plugin --profile web add "https://github.com/Donfgt/dsh-plugins/releases/download/v0.1.0/dsh-sidebar-extras-0.1.0.tgz"
 ```
 
 From a local checkout, while developing:
@@ -24,6 +24,11 @@ From a local checkout, while developing:
 ```powershell
 dsh plugin --profile web add "link:C:\path\to\dsh-plugins\plugins\ui\dsh-sidebar-extras"
 ```
+
+`github:...#path:` works for a first install too, but pnpm drops the path fragment
+from the profile manifest — a later `add` in the same profile then re-resolves the
+repo root and the package disappears. Use the tarball or `link:` instead; see the
+[repository README](../../../../README.md#已知问题).
 
 With HMR enabled in the profile (the shipped `web` template enables it) the plugin
 mounts live; otherwise restart `dsh web`.
