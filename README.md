@@ -21,12 +21,12 @@ DeepSeek Harness（DSH）插件合集。**一个插件一个目录，按类型�
 
 #### [dsh-sidebar-extras](plugins/ui/dsh-sidebar-extras/)
 
-侧边栏左下角常驻一枚 **DeepSeek 余额**胶囊（60 秒刷新），点开是余额 / 今日·7 天·30 天消耗面板；侧边栏另加一个「皮肤」入口，点进去是已安装皮肤的**预览图画廊**，支持一键切换、删除。
+侧边栏一个「皮肤」入口，点进去是已安装皮肤的**预览图画廊**：一键切换（自动关掉其它皮肤）、删除。只有非官方 bundle 里被判定为皮肤的才会进来；余额 / 用量那套已移除，交给 `dsh-whale-widget`。
 
-发布包（v0.1.0）安装：
+发布包（v0.2.0）安装：
 
 ```powershell
-dsh plugin --profile web add "https://github.com/Donfgt/dsh-plugins/releases/download/v0.1.0/dsh-sidebar-extras-0.1.0.tgz"
+dsh plugin --profile web add "https://github.com/Donfgt/dsh-plugins/releases/download/v0.2.0/dsh-sidebar-extras-0.2.0.tgz"
 ```
 
 本地 clone 后安装（推荐用于改动源码）：

@@ -8,7 +8,6 @@ window.__ModuleLoader__.load({
 		const h = React.createElement;
 
 		const API = "/sidebar-extras/api";
-		const BALANCE_PANEL = "sidebar-extras-balance";
 		const SKINS_PANEL = "sidebar-extras-skins";
 		const STYLE_ID = "dsh-sidebar-extras-style";
 
@@ -34,35 +33,13 @@ window.__ModuleLoader__.load({
 			});
 		}
 
-		function money(value, currency) {
-			const number = Number(value);
-			if (!Number.isFinite(number)) return "—";
-			const symbol = currency === "USD" ? "$" : "¥";
-			return `${symbol}${number.toFixed(2)}`;
-		}
-
 		/* --------------------------------------------------------------- styles */
 
 		const CSS = `
-.dshx-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 8px;
-  border: 1px solid color-mix(in srgb, currentColor 14%, transparent); background: transparent; color: inherit;
-  font: inherit; font-size: 12px; line-height: 1; cursor: pointer; max-width: 100%; }
-.dshx-pill:hover { background: color-mix(in srgb, currentColor 7%, transparent); }
-.dshx-pill[data-state="error"] { opacity: .65; }
-.dshx-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: #35c46a; flex: none; }
-.dshx-pill[data-state="error"] .dshx-pill-dot { background: #e05353; }
-.dshx-pill[data-state="loading"] .dshx-pill-dot { background: #d0a020; }
-.dshx-mono { font-variant-numeric: tabular-nums; }
 .dshx-page { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; height: 100%; overflow: auto; }
 .dshx-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .dshx-title { font-size: 16px; font-weight: 600; margin: 0; }
 .dshx-sub { font-size: 12px; opacity: .6; margin: 0; }
-.dshx-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.dshx-card { border: 1px solid color-mix(in srgb, currentColor 12%, transparent); border-radius: 10px; padding: 12px 14px;
-  display: flex; flex-direction: column; gap: 6px; }
-.dshx-card-label { font-size: 11px; opacity: .6; letter-spacing: .02em; }
-.dshx-card-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.dshx-card-value.small { font-size: 14px; font-weight: 500; }
 .dshx-btn { height: 28px; padding: 0 12px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer;
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent); background: transparent; color: inherit; }
 .dshx-btn:hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); }
@@ -95,99 +72,6 @@ window.__ModuleLoader__.load({
 			style.id = STYLE_ID;
 			style.textContent = CSS;
 			document.head.appendChild(style);
-		}
-
-		/* --------------------------------------------------------- balance pill */
-
-		function BalancePill(props) {
-			const wide = props.wide !== false;
-			const [state, setState] = React.useState({ status: "loading" });
-			React.useEffect(() => {
-				let alive = true;
-				const load = () => {
-					getJson("/balance").then((payload) => {
-						if (alive) setState({ status: "ready", payload });
-					}).catch((error) => {
-						if (alive) setState({ status: "error", message: error.message });
-					});
-				};
-				load();
-				const timer = setInterval(load, 60000);
-				return () => {
-					alive = false;
-					clearInterval(timer);
-				};
-			}, []);
-			const payload = state.payload;
-			const failed = state.status === "error" || (payload && payload.ok === false);
-			const total = payload && payload.ok ? money(payload.total, payload.currency) : "";
-			const label = failed ? "余额读取失败" : state.status === "ready" ? total : "余额加载中";
-			return h("button", {
-				type: "button",
-				className: "dshx-pill",
-				"data-state": failed ? "error" : state.status === "ready" ? "ready" : "loading",
-				title: failed ? (state.message || (payload && payload.message) || "余额读取失败") : `DeepSeek 余额 ${total}`,
-				onClick: () => props.openPanel(BALANCE_PANEL)
-			}, h("span", { className: "dshx-pill-dot" }), wide ? h("span", { className: "dshx-mono" }, label) : null);
-		}
-
-		/* -------------------------------------------------------- balance panel */
-
-		function BalancePage() {
-			const [state, setState] = React.useState({ status: "loading" });
-			const [refreshing, setRefreshing] = React.useState(false);
-
-			const load = React.useCallback((force) => {
-				setRefreshing(true);
-				getJson(force ? "/balance?refresh=1" : "/balance").then((payload) => {
-					setState({ status: "ready", payload });
-				}).catch((error) => {
-					setState({ status: "error", message: error.message });
-				}).finally(() => setRefreshing(false));
-			}, []);
-
-			React.useEffect(() => {
-				load(false);
-				const timer = setInterval(() => load(false), 60000);
-				return () => clearInterval(timer);
-			}, [load]);
-
-			const payload = state.payload;
-			const usage = (payload && payload.usage) || {};
-			const ok = payload && payload.ok;
-			return h("div", { className: "dshx-page" },
-				h("div", { className: "dshx-head" },
-					h("div", null,
-						h("h2", { className: "dshx-title" }, "DeepSeek 余额与用量"),
-						h("p", { className: "dshx-sub" }, payload && payload.at ? `更新于 ${new Date(payload.at).toLocaleTimeString()}` : "正在读取…")),
-					h("button", { type: "button", className: "dshx-btn", disabled: refreshing, onClick: () => load(true) },
-						refreshing ? "刷新中…" : "刷新")),
-				!ok && payload && payload.message ? h("p", { className: "dshx-error" }, payload.message) : null,
-				state.status === "error" ? h("p", { className: "dshx-error" }, state.message) : null,
-				ok ? h("div", { className: "dshx-cards" },
-					h("div", { className: "dshx-card" },
-						h("span", { className: "dshx-card-label" }, "当前余额"),
-						h("span", { className: "dshx-card-value" }, money(payload.total, payload.currency)),
-						h("span", { className: "dshx-sub" }, payload.available ? "可用" : "不可用")),
-					h("div", { className: "dshx-card" },
-						h("span", { className: "dshx-card-label" }, "赠送余额"),
-						h("span", { className: "dshx-card-value small" }, money(payload.granted, payload.currency))),
-					h("div", { className: "dshx-card" },
-						h("span", { className: "dshx-card-label" }, "充值余额"),
-						h("span", { className: "dshx-card-value small" }, money(payload.toppedUp, payload.currency)))) : null,
-				h("div", { className: "dshx-cards" },
-					h("div", { className: "dshx-card" },
-						h("span", { className: "dshx-card-label" }, "今日消耗（推算）"),
-						h("span", { className: "dshx-card-value" }, money(usage.today || 0, payload && payload.currency))),
-					h("div", { className: "dshx-card" },
-						h("span", { className: "dshx-card-label" }, "近 7 天（推算）"),
-						h("span", { className: "dshx-card-value small" }, money(usage.week || 0, payload && payload.currency))),
-					h("div", { className: "dshx-card" },
-						h("span", { className: "dshx-card-label" }, "近 30 天（推算）"),
-						h("span", { className: "dshx-card-value small" }, money(usage.month || 0, payload && payload.currency)))),
-				h("p", { className: "dshx-note" },
-					"DeepSeek 没有公开的用量查询接口，所以「消耗」是按余额差额推算的：每次读取余额会存一个样本，余额下降的部分累加即为支出，充值造成的上升会被忽略。",
-					usage.samples ? ` 目前有 ${usage.samples} 个样本。` : " 目前还没有积累到足够的样本，先在页面上停留一会儿。"));
 		}
 
 		/* ---------------------------------------------------------- skins panel */
@@ -291,7 +175,7 @@ window.__ModuleLoader__.load({
 
 		/* ------------------------------------------------------------------ apply */
 
-		const inject = ["slots", "layout"];
+		const inject = ["slots"];
 
 		function apply(ctx) {
 			ensureStyle();
@@ -299,15 +183,7 @@ window.__ModuleLoader__.load({
 				const style = typeof document === "undefined" ? null : document.getElementById(STYLE_ID);
 				if (style) style.remove();
 			});
-			ctx.slots.inject("main", () => ctx.slots.register({ name: "main", key: BALANCE_PANEL }, BalancePage));
 			ctx.slots.inject("main", () => ctx.slots.register({ name: "main", key: SKINS_PANEL }, SkinsPage));
-			ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
-				name: "sidebar.footer.action",
-				id: "deepseek-balance",
-				order: 10,
-				label: "DeepSeek 余额",
-				inject: () => ({ openPanel: (id) => ctx.layout.selectPanel(id) })
-			}, BalancePill));
 			ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({
 				name: "sidebar.panellist",
 				id: SKINS_PANEL,

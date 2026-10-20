@@ -1,22 +1,24 @@
 # dsh-sidebar-extras
 
-Two additions to the DeepSeek Harness Web sidebar, in one small plugin:
-
-| Feature | Where it appears |
-|---|---|
-| DeepSeek API balance + estimated spend | a live pill at the sidebar foot, and a panel with today / 7-day / 30-day spend |
-| Skin switcher | a **皮肤** entry in the sidebar, opening a gallery of installed skins with previews, plus apply and remove |
+A **skin switcher** for the DeepSeek Harness Web sidebar: one **皮肤** entry that
+opens a gallery of every installed skin with its preview image, plus one-click
+switch and remove.
 
 Built and verified against DSH `0.2.1-rc.2` on Windows.
 
 Category: [`plugins/ui/`](../../ui/) · part of [dsh-plugins](../../../../README.md).
+
+> The DeepSeek balance panel that used to live here was removed in 0.2.0 — the
+> floating [dsh-whale-widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)
+> owns that surface (per-turn cost with peak/off-peak pricing beats a sampled
+> balance delta).
 
 ## Install
 
 From the published release (no clone needed):
 
 ```powershell
-dsh plugin --profile web add "https://github.com/Donfgt/dsh-plugins/releases/download/v0.1.0/dsh-sidebar-extras-0.1.0.tgz"
+dsh plugin --profile web add "https://github.com/Donfgt/dsh-plugins/releases/download/v0.2.0/dsh-sidebar-extras-0.2.0.tgz"
 ```
 
 From a local checkout, while developing:
@@ -41,39 +43,35 @@ dsh plugin --profile web remove dsh-sidebar-extras
 
 ## What it does
 
-### Balance and usage
+### Which bundles count as skins
 
-- Reads `DEEPSEEK_API_KEY` through the harness credential service (falling back to
-  the environment variable) and calls `GET https://api.deepseek.com/user/balance`.
-- The pill shows the total balance with a status dot; clicking it opens the panel.
-- Usage is **estimated**, because DeepSeek publishes no usage endpoint: every
-  balance read stores a sample under `<profile>/.sidebar-extras/balance-history.json`,
-  and decreases between consecutive samples are summed into today / 7-day /
-  30-day buckets. Top-ups (balance increases) are ignored. The estimate gets
-  better the longer the plugin runs.
+A non-official bundle is listed when any of these holds:
 
-### Skin gallery
+- it has art in this package's `previews/` (a curated set — most npm packages drop
+  their screenshots, so this covers the popular skins), or
+- its package name contains `skin`, `theme`, or `ui` as a segment, or
+- it is on the small allowlist for skins that restyle the page under another name
+  (`dsh-ads`).
 
-- Lists non-official bundles installed in the profile that look like skins
-  (`skin`, `theme`, `ui` in the name) or ship preview art.
-- Preview images come from the bundle itself when it ships screenshots, and
-  otherwise from `previews/` in this package (a curated set, because most npm
-  packages drop their screenshots).
-- **换成这个** enables one skin and disables the others — skins all rewrite the
-  same CSS tokens, so only one should be active.
-- **删除** removes the package from the profile through the plugin manager.
+Everything else — `dsh-im`, `dsh-openpencil`, `dsh-whale-widget`, `dsh-find-plugin` —
+stays out of the gallery.
+
+### Swapping
+
+Clicking **换成这个** enables that bundle and disables every other gallery skin,
+because skins all rewrite the same CSS token ladder: two at once fight. The action
+goes through this profile's plugin manager, so the change is persisted in
+`package.json` and applied by recomposition. **删除** removes the package.
 
 ## API routes
 
-All routes sit under `/sidebar-extras/api`, accept loopback clients only, and
-serve the browser half; nothing is exposed beyond this machine.
+Everything sits under `/sidebar-extras/api`, loopback clients only.
 
 | Route | Purpose |
 |---|---|
-| `GET /balance[?refresh=1]` | current balance plus estimated usage |
-| `GET /skins` | installed skins, preview URLs, enabled state |
-| `GET /skins/preview?name=<pkg>&bundled=1` | bundled preview art |
-| `GET /skins/preview?name=<pkg>&file=<rel>` | preview art from the package |
+| `GET /skins` | gallery rows: name, version, enabled, preview URL |
+| `GET /skins/preview?name=<pkg>&bundled=1` | bundled 900px WebP art |
+| `GET /skins/preview?name=<pkg>&file=<rel>` | art shipped inside the package |
 | `POST /skins/apply` `{name}` | enable one skin, disable the others |
 | `POST /skins/remove` `{name}` | remove the package from the profile |
 
@@ -82,9 +80,9 @@ serve the browser half; nothing is exposed beyond this machine.
 ```
 package.json          bundle patch + dsh.client declaration
 cordis.patch.yml      inserts the host entry
-lib/index.js          host: balance fetch, skin inventory, routes
+lib/index.js          host: skin inventory, preview lookup, routes
 lib/client.js         browser: slot registrations (no build step)
-previews/             curated preview art
+previews/             curated preview art (900px WebP, ~480 KB total)
 ```
 
 The browser half is a hand-written lazy-CJS factory in the
@@ -92,16 +90,15 @@ The browser half is a hand-written lazy-CJS factory in the
 bundler: edit `lib/client.js` and reload. It requires only `react` from the
 platform module table.
 
-## Notes and limits
+## Notes
 
-- One host entry serves both features; the two panels share the sidebar slots
-  `sidebar.footer.action` (balance pill) and `sidebar.panellist` (skins).
-- Switching a skin recomposes the profile, which disposes the plugin's own
-  context mid-request — the host half therefore captures service instances at
-  `apply()` time instead of resolving them per call.
-- `X-MCP-Toolsets`-style gating does not exist for skins; a bundle is shown or it
-  is not.
-- No automated tests yet; every path in this README was exercised against a live
-  profile (`/balance`, `/skins`, apply, remove) before publishing.
+- One host entry serves the gallery; the browser half registers
+  `sidebar.panellist` (**皮肤**) and two `main` panel keys — the skins page and the
+  panel it opens.
+- Switching a skin recomposes the profile, which disposes this plugin's own
+  context mid-request, so the host half captures service instances at `apply()`
+  time instead of resolving them per call.
+- Preview URLs are served from the plugin, not from the skin packages, so a skin
+  that ships no screenshots still shows real art when it is in the curated map.
 
 MIT — see [LICENSE](LICENSE).

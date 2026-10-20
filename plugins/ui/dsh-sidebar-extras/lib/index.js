@@ -1,30 +1,36 @@
 /**
  * dsh-sidebar-extras — host half.
  *
- * Serves the two data surfaces the browser half renders:
- *   - DeepSeek API balance plus an estimated spend derived from balance deltas
- *     (DeepSeek publishes no usage endpoint, so the balance is the only signal).
- *   - The installed bundle list filtered down to skins, with preview images and
- *     apply/remove actions delegated to this profile's plugin manager.
+ * Serves the skin gallery the browser half renders: the bundles that look like
+ * skins, their preview images, and apply/remove actions delegated to this
+ * profile's plugin manager.
  *
- * Everything lives under one loopback-only prefix route; the browser half never
- * needs a remote service, a built artifact, or a token of its own.
+ * Balance and usage are *not* part of this plugin any more — dsh-whale-widget
+ * owns that surface (per-turn cost with peak/off-peak pricing beats a sampled
+ * balance delta). Everything here lives under one loopback-only prefix route.
  */
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { extname, isAbsolute, join, normalize, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const name = 'sidebar-extras';
 
-export const inject = ['webServer', 'pluginManager', 'credentials', 'profileContext'];
+export const inject = ['webServer', 'pluginManager', 'profileContext'];
 
 const ROUTE_PREFIX = '/sidebar-extras/api';
-const BALANCE_URL = 'https://api.deepseek.com/user/balance';
-const BALANCE_TTL_MS = 30_000;
 
 /** Bundles that are never skins and must not appear in the gallery. */
 const NEVER_SKIN = new Set(['dsh-sidebar-extras', 'dsh-find-plugin', 'dshbase-catalog']);
+
+/**
+ * Non-skin bundles that still belong in the gallery because they restyle the
+ * page (the 2005-ads joke plugin is one) instead of matching by name.
+ */
+const SKIN_ALLOWLIST = [/dsh-ads/i];
+
+/** Name shapes that read as a skin without a bundled preview. */
+const SKIN_NAME = /(^|[-/@])(skin|theme|ui)([-@/]|$)/i;
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 
@@ -187,149 +193,8 @@ export function apply(ctx) {
   // recomposes the profile and disposes this plugin's context mid-request,
   // while the services themselves stay alive.
   const manager = ctx.pluginManager;
-  const credentials = ctx.credentials;
   const webServer = ctx.webServer;
-  const balanceCache = { at: 0, payload: undefined, inflight: undefined };
   const previewCache = new Map();
-
-  const historyPath = () => join(profileDir, '.sidebar-extras', 'balance-history.json');
-
-  async function readHistory() {
-    try {
-      const parsed = JSON.parse(await readFile(historyPath(), 'utf8'));
-      return Array.isArray(parsed?.samples) ? parsed.samples : [];
-    } catch {
-      return [];
-    }
-  }
-
-  async function writeHistory(samples) {
-    try {
-      await mkdir(join(profileDir, '.sidebar-extras'), { recursive: true });
-      await writeFile(historyPath(), JSON.stringify({ version: 1, samples }), 'utf8');
-    } catch (error) {
-      ctx.logger?.warn?.(`dsh-sidebar-extras: cannot persist balance history: ${error.message}`);
-    }
-  }
-
-  async function resolveApiKey() {
-    for (const ref of ['DEEPSEEK_API_KEY', 'DEEPSEEK']) {
-      try {
-        const resolved = await credentials.resolve(ref);
-        if (resolved?.value) return resolved.value;
-      } catch {
-        /* try the next reference */
-      }
-    }
-    const fromEnv = process.env.DEEPSEEK_API_KEY;
-    return fromEnv && fromEnv.trim() ? fromEnv.trim() : undefined;
-  }
-
-  function startOfToday() {
-    const day = new Date();
-    day.setHours(0, 0, 0, 0);
-    return day.getTime();
-  }
-
-  /** Spend estimated from decreases between consecutive balance samples. */
-  function estimateUsage(samples) {
-    const now = Date.now();
-    const dayStart = startOfToday();
-    const weekStart = dayStart - 6 * 86_400_000;
-    const monthStart = dayStart - 29 * 86_400_000;
-    let today = 0;
-    let week = 0;
-    let month = 0;
-    for (let i = 1; i < samples.length; i += 1) {
-      const prev = samples[i - 1];
-      const cur = samples[i];
-      const drop = Number(prev.cny) - Number(cur.cny);
-      if (!Number.isFinite(drop) || drop <= 0) continue;
-      if (cur.t >= monthStart) month += drop;
-      if (cur.t >= weekStart) week += drop;
-      if (cur.t >= dayStart) today += drop;
-    }
-    return {
-      today: Number(today.toFixed(4)),
-      week: Number(week.toFixed(4)),
-      month: Number(month.toFixed(4)),
-      samples: samples.length,
-      firstSampleAt: samples.length > 0 ? samples[0].t : null,
-      lastSampleAt: samples.length > 0 ? samples[samples.length - 1].t : null,
-      computedAt: now,
-    };
-  }
-
-  async function loadBalance() {
-    const key = await resolveApiKey();
-    if (!key) {
-      return {
-        ok: false,
-        error: 'no-credential',
-        message: '未找到 DEEPSEEK_API_KEY（凭据或环境变量）。',
-        usage: estimateUsage(await readHistory()),
-      };
-    }
-    const response = await fetch(BALANCE_URL, {
-      headers: { authorization: `Bearer ${key}`, accept: 'application/json' },
-      signal: AbortSignal.timeout(20_000),
-    });
-    const text = await response.text();
-    if (!response.ok) {
-      return {
-        ok: false,
-        error: `http-${response.status}`,
-        message: `余额接口返回 ${response.status}: ${text.slice(0, 200)}`,
-        usage: estimateUsage(await readHistory()),
-      };
-    }
-    let payload;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      return { ok: false, error: 'bad-json', message: '余额接口返回了非 JSON 内容。' };
-    }
-    const info = Array.isArray(payload?.balance_infos) ? payload.balance_infos[0] : undefined;
-    if (!info) {
-      return { ok: false, error: 'no-balance-info', message: '余额接口没有返回 balance_infos。' };
-    }
-    const total = Number(info.total_balance);
-    const samples = await readHistory();
-    const now = Date.now();
-    const last = samples[samples.length - 1];
-    const changed = !last || last.cny !== total || now - last.t > 10 * 60_000;
-    if (changed) samples.push({ t: now, cny: Number.isFinite(total) ? total : 0 });
-    const cutoff = now - 60 * 86_400_000;
-    const trimmed = samples.filter((sample) => sample.t >= cutoff).slice(-5000);
-    if (changed || trimmed.length !== samples.length) await writeHistory(trimmed);
-    return {
-      ok: true,
-      at: now,
-      available: payload?.is_available !== false,
-      currency: info.currency ?? 'CNY',
-      total: info.total_balance,
-      granted: info.granted_balance,
-      toppedUp: info.topped_up_balance,
-      usage: estimateUsage(trimmed),
-    };
-  }
-
-  async function refreshBalance(force) {
-    const fresh = Date.now() - balanceCache.at < BALANCE_TTL_MS;
-    if (!force && fresh && balanceCache.payload) return balanceCache.payload;
-    if (balanceCache.inflight) return balanceCache.inflight;
-    balanceCache.inflight = (async () => {
-      try {
-        const payload = await loadBalance();
-        balanceCache.payload = payload;
-        balanceCache.at = Date.now();
-        return payload;
-      } finally {
-        balanceCache.inflight = undefined;
-      }
-    })();
-    return balanceCache.inflight;
-  }
 
   async function findPreview(packageName, dir) {
     const cached = previewCache.get(packageName);
@@ -340,12 +205,18 @@ export function apply(ctx) {
       previewCache.set(packageName, result);
       return result;
     }
+    if (!dir) return undefined;
     const images = (await collectImages(dir)).filter((image) => !/icon|logo|badge|favicon|sprite/i.test(image.rel));
     if (images.length === 0) return undefined;
     images.sort((a, b) => b.score - a.score || b.bytes - a.bytes);
     const result = { bundled: false, file: images[0].rel };
     previewCache.set(packageName, result);
     return result;
+  }
+
+  /** A bundle is a skin when it is curated, allowlisted, or named like one. */
+  function isSkinBundle(packageName) {
+    return Boolean(bundledPreviewFor(packageName)) || SKIN_NAME.test(packageName) || SKIN_ALLOWLIST.some((rx) => rx.test(packageName));
   }
 
   function normalizeRelative(rel) {
@@ -359,10 +230,9 @@ export function apply(ctx) {
     for (const bundle of bundles) {
       if (bundle.official || NEVER_SKIN.has(bundle.name)) continue;
       if (bundle.availability === 'missing') continue;
+      if (!isSkinBundle(bundle.name)) continue;
       const dir = packageDirOf(profileDir, bundle.name);
-      const preview = dir ? await findPreview(bundle.name, dir) : undefined;
-      const looksLikeSkin = /(^|[-/@])(skin|theme|ui)([-@/]|$)/i.test(bundle.name);
-      if (!preview && !looksLikeSkin) continue;
+      const preview = await findPreview(bundle.name, dir);
       rows.push({
         name: bundle.name,
         short: bundle.name.replace(/^@[^/]+\//, ''),
@@ -445,9 +315,6 @@ export function apply(ctx) {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     const path = url.pathname.startsWith(ROUTE_PREFIX) ? url.pathname.slice(ROUTE_PREFIX.length) : url.pathname;
     try {
-      if (req.method === 'GET' && (path === '/balance' || path === '/balance/')) {
-        return sendJson(res, 200, await refreshBalance(url.searchParams.get('refresh') === '1'));
-      }
       if (req.method === 'GET' && path === '/skins') {
         return sendJson(res, 200, { ok: true, skins: await listSkins() });
       }

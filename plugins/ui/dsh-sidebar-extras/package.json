@@ -1,8 +1,8 @@
 {
   "name": "dsh-sidebar-extras",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "DeepSeek API balance/usage panel and skin switcher for the DSH Web sidebar",
+  "description": "Skin switcher for the DSH Web sidebar: gallery of installed skins with previews, one-click switch and remove",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
