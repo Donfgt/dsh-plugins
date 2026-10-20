@@ -1,92 +1,83 @@
-# dsh-sidebar-extras
+# dsh-plugins
 
-Two additions to the DeepSeek Harness Web sidebar, in one small plugin:
+DeepSeek Harness（DSH）插件合集。**一个插件一个目录，按类型分类**，每个插件自带完整的安装指令与说明。
 
-| Feature | Where it appears |
-|---|---|
-| DeepSeek API balance + estimated spend | a live pill at the sidebar foot, and a panel with today / 7-day / 30-day spend |
-| Skin switcher | a **皮肤** entry in the sidebar, opening a gallery of installed skins with previews, plus apply and remove |
+全部插件都在 Windows + DSH `0.2.1-rc.2` 上实测安装、启动并验证过行为。
 
-Built and verified against DSH `0.2.1-rc.2` on Windows.
+## 目录
 
-## Install
+| 分类 | 目录 | 放什么 |
+|---|---|---|
+| 界面 | [`plugins/ui/`](plugins/ui/) | 侧边栏条目、主面板、常驻小组件这类客户端 UI 扩展 |
+| 皮肤 | `plugins/themes/` | 整套换肤 / 主题包（按需新增） |
+| 工具 | `plugins/tools/` | 给模型新增工具、命令或工作流 |
+| 集成 | `plugins/integrations/` | 对接外部服务：MCP、webhook、第三方 API |
+
+> 目录只随插件增加而创建；目前只有「界面」下有一个插件。
+
+## 插件清单
+
+### 界面 · `plugins/ui/`
+
+#### [dsh-sidebar-extras](plugins/ui/dsh-sidebar-extras/)
+
+侧边栏左下角常驻一枚 **DeepSeek 余额**胶囊（实时刷新），点开是余额 / 今日·7 天·30 天消耗面板；侧边栏另加一个「皮肤」入口，点进去是已安装皮肤的**预览图画廊**，支持一键切换、删除。
 
 ```powershell
-dsh plugin --profile web add link:C:\path\to\dsh-sidebar-extras
+dsh plugin --profile web add "github:Donfgt/dsh-plugins#path:/plugins/ui/dsh-sidebar-extras"
 ```
 
-With HMR enabled in the profile (the shipped `web` template enables it) the plugin
-mounts live; otherwise restart `dsh web`.
+细节、原理与限制见 [插件 README](plugins/ui/dsh-sidebar-extras/README.md)。
 
-Remove:
+## 三种安装方式
+
+**1. 直接从本仓库装（推荐，无需 clone）**
 
 ```powershell
-dsh plugin --profile web remove dsh-sidebar-extras
+dsh plugin --profile web add "github:Donfgt/dsh-plugins#path:/plugins/<分类>/<插件目录>"
 ```
 
-## What it does
+`#path:` 指向仓库内的子目录，pnpm 会浅克隆后按该目录的 `package.json` 安装。
 
-### Balance and usage
+**2. 本地开发用 link**
 
-- Reads `DEEPSEEK_API_KEY` through the harness credential service (falling back to
-  the environment variable) and calls `GET https://api.deepseek.com/user/balance`.
-- The pill shows the total balance with a status dot; clicking it opens the panel.
-- Usage is **estimated**, because DeepSeek publishes no usage endpoint: every
-  balance read stores a sample under `<profile>/.sidebar-extras/balance-history.json`,
-  and decreases between consecutive samples are summed into today / 7-day /
-  30-day buckets. Top-ups (balance increases) are ignored. The estimate gets
-  better the longer the plugin runs.
-
-### Skin gallery
-
-- Lists non-official bundles installed in the profile that look like skins
-  (`skin`, `theme`, `ui` in the name) or ship preview art.
-- Preview images come from the bundle itself when it ships screenshots, and
-  otherwise from `previews/` in this package (a curated set, because most npm
-  packages drop their screenshots).
-- **换成这个** enables one skin and disables the others — skins all rewrite the
-  same CSS tokens, so only one should be active.
-- **删除** removes the package from the profile through the plugin manager.
-
-## API routes
-
-All routes sit under `/sidebar-extras/api`, accept loopback clients only, and
-serve the browser half; nothing is exposed beyond this machine.
-
-| Route | Purpose |
-|---|---|
-| `GET /balance[?refresh=1]` | current balance plus estimated usage |
-| `GET /skins` | installed skins, preview URLs, enabled state |
-| `GET /skins/preview?name=<pkg>&bundled=1` | bundled preview art |
-| `GET /skins/preview?name=<pkg>&file=<rel>` | preview art from the package |
-| `POST /skins/apply` `{name}` | enable one skin, disable the others |
-| `POST /skins/remove` `{name}` | remove the package from the profile |
-
-## Layout
-
-```
-package.json          bundle patch + dsh.client declaration
-cordis.patch.yml      inserts the host entry
-lib/index.js          host: balance fetch, skin inventory, routes
-lib/client.js         browser: slot registrations (no build step)
-previews/             curated preview art
+```powershell
+dsh plugin --profile web add "link:C:\path\to\dsh-plugins\plugins\ui\dsh-sidebar-extras"
 ```
 
-The browser half is a hand-written lazy-CJS factory in the
-`window.__ModuleLoader__.load({ id, factory })` format, so the package needs no
-bundler: edit `lib/client.js` and reload. It requires only `react` from the
-platform module table.
+改了源码后触发一次 profile 重组（保存 `cordis.patch.yml` 或重装一次）即可加载新代码 —— 本项目所有插件都不需要构建步骤。
 
-## Notes and limits
+**3. 发布到 npm 后**
 
-- One host entry serves both features; the two panels share the sidebar slots
-  `sidebar.footer.action` (balance pill) and `sidebar.panellist` (skins).
-- Switching a skin recomposes the profile, which disposes the plugin's own
-  context mid-request — the host half therefore captures service instances at
-  `apply()` time instead of resolving them per call.
-- `X-MCP-Toolsets`-style gating does not exist for skins; a bundle is shown or it
-  is not.
-- No automated tests yet; every path in this README was exercised against a live
-  profile (`/balance`, `/skins`, apply, remove) before publishing.
+```powershell
+dsh plugin --profile web add <包名>
+```
 
-MIT — see [LICENSE](LICENSE).
+## 卸载
+
+```powershell
+dsh plugin --profile web remove <包名>
+```
+
+## 目录约定
+
+```
+.
+├── README.md                       ← 你正在看的清单
+├── LICENSE
+└── plugins/
+    └── <分类>/
+        └── <插件目录>/
+            ├── README.md           ← 该插件的安装指令 + 说明
+            ├── package.json        ← name 即安装后的包名
+            ├── cordis.patch.yml    ← bundle patch，把插件挂进 profile
+            ├── lib/index.js        ← 宿主侧（Node ESM）
+            ├── lib/client.js       ← 浏览器侧（lazy-CJS，无需构建）
+            └── ...                 ← 静态资源（预览图等）
+```
+
+新增插件时：在对应分类下建目录、补齐上面几个文件、在根 README 的「插件清单」里加一行安装命令。
+
+## License
+
+MIT，见 [LICENSE](LICENSE)。
