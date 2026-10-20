@@ -36,6 +36,11 @@ window.__ModuleLoader__.load({
 		/* --------------------------------------------------------------- styles */
 
 		const CSS = `
+/* compat: full-bleed skins (fixed iframes/canvas overlays) paint over the
+   bottom-right corner that dsh-whale-widget docks to. The widget's own root
+   sits at z-index 9999; lift it above any skin layer. Its root is
+   pointer-events:none, so this never blocks the UI underneath. */
+html body .dshwv-root, html body > .dshwv-root { z-index: 100000 !important; }
 .dshx-page { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; height: 100%; overflow: auto; }
 .dshx-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .dshx-title { font-size: 16px; font-weight: 600; margin: 0; }
