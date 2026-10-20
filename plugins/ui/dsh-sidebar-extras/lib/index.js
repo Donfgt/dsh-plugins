@@ -61,6 +61,7 @@ const MIME = {
 const BUNDLED_PREVIEWS = [
   [/day-night/i, 'day-night.webp'],
   [/maid-whale/i, 'maid-whale.webp'],
+  [/joi-channel/i, 'joi-channel.webp'],
   [/open-sea/i, 'open-sea.webp'],
   [/catppuccin/i, 'catppuccin.webp'],
   [/qingxiao|清宵/i, 'qingxiao.webp'],
